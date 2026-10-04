@@ -1,11 +1,21 @@
 import { useState } from "react";
 import AnimateOnScroll from "../components/AnimateOnScroll";
+import { sendEnquiry } from "../lib/sendEnquiry";
+import { validateContactForm, normalizePhone } from "../lib/validation";
 import slider4 from "../assets/slider4.png";
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
   const [copied, setCopied] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [errors, setErrors] = useState({});
+
+  const update = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+  };
 
   const copyToClipboard = (text, key) => {
     navigator.clipboard.writeText(text);
@@ -13,9 +23,29 @@ export default function Contact() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (status === "sending") return;
+    const errs = validateContactForm(form);
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setStatus("sending");
+    setErrorMsg("");
+    try {
+      await sendEnquiry({
+        subject: `New Contact Enquiry — Silver TC Fitting | ${form.name.trim()}`,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: normalizePhone(form.phone),
+        message: form.message.trim(),
+        formKind: "Contact Page",
+      });
+      setStatus("idle");
+      setSubmitted(true);
+    } catch (err) {
+      setStatus("idle");
+      setErrorMsg(err.message || "Failed to send. Please try again later.");
+    }
   };
 
   return (
@@ -51,17 +81,19 @@ export default function Contact() {
                   <p className="text-gray-600">We'll get back to you within 24 hours.</p>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                  <input type="checkbox" name="botcheck" className="hidden" tabIndex={-1} autoComplete="off" />
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name</label>
                     <input
                       type="text"
                       required
                       value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      onChange={(e) => update("name", e.target.value)}
+                      className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${errors.name ? "border-red-400 focus:ring-2 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100"}`}
                       placeholder="Your name"
                     />
+                    {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
@@ -70,20 +102,23 @@ export default function Contact() {
                         type="email"
                         required
                         value={form.email}
-                        onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                        onChange={(e) => update("email", e.target.value)}
+                        className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${errors.email ? "border-red-400 focus:ring-2 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100"}`}
                         placeholder="your@email.com"
                       />
+                      {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone</label>
                       <input
                         type="tel"
+                        required
                         value={form.phone}
-                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                        onChange={(e) => update("phone", e.target.value)}
+                        className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${errors.phone ? "border-red-400 focus:ring-2 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100"}`}
                         placeholder="+91 9XXXXXXXXX"
                       />
+                      {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                     </div>
                   </div>
                   <div>
@@ -92,16 +127,23 @@ export default function Contact() {
                       required
                       rows={5}
                       value={form.message}
-                      onChange={(e) => setForm({ ...form, message: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none"
+                      onChange={(e) => update("message", e.target.value)}
+                      className={`w-full px-4 py-3 rounded-xl border outline-none transition-all resize-none ${errors.message ? "border-red-400 focus:ring-2 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100"}`}
                       placeholder="Tell us about your requirements..."
                     />
+                    {errors.message && <p className="text-red-500 text-xs mt-1">{errors.message}</p>}
                   </div>
+                  {errorMsg && (
+                    <p className="bg-red-50 border border-red-200 text-red-600 text-sm font-medium rounded-xl px-4 py-3">
+                      {errorMsg}
+                    </p>
+                  )}
                   <button
                     type="submit"
-                    className="w-full bg-brand-blue text-white font-bold py-3.5 px-6 rounded-xl hover:bg-brand-blue-light transition-all duration-200 shadow-md"
+                    disabled={status === "sending"}
+                    className="w-full bg-brand-blue text-white font-bold py-3.5 px-6 rounded-xl hover:bg-brand-blue-light transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Send Message
+                    {status === "sending" ? "Sending..." : "Send Message"}
                   </button>
                 </form>
               )}

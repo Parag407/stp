@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from "react-route
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PageLoader from "./components/PageLoader";
+import ScrollToTop from "./components/ScrollToTop";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Products from "./pages/Products";
@@ -15,6 +16,7 @@ function AppLayout() {
   return (
     <div className="min-h-screen flex flex-col">
       <PageLoader />
+      <ScrollToTop />
       <Navbar />
       <main className="flex-1 animate-page-enter" key={location.pathname}>
         <Routes>

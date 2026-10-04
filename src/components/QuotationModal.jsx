@@ -1,32 +1,48 @@
 import { useState } from "react";
+import { sendEnquiry } from "../lib/sendEnquiry";
+import { validateQuotationForm, normalizePhone } from "../lib/validation";
 
 export default function QuotationModal({ isOpen, onClose }) {
-  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const validate = () => {
-    const errs = {};
-    if (!form.name.trim()) errs.name = "Name is required";
-    if (!form.email.trim()) errs.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = "Invalid email format";
-    if (!form.message.trim()) errs.message = "Message is required";
-    else if (form.message.trim().length < 10) errs.message = "Message must be at least 10 characters";
+    const errs = validateQuotationForm(form);
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validate()) {
+    if (!validate() || sending) return;
+    setSending(true);
+    setSubmitError("");
+    try {
+      await sendEnquiry({
+        subject: `New Quotation Request — Silver TC Fitting | ${form.name.trim()}`,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: normalizePhone(form.phone),
+        message: form.message.trim(),
+        formKind: "Quotation Modal",
+      });
+      setSending(false);
       setSubmitted(true);
+    } catch (err) {
+      setSending(false);
+      setSubmitError(err.message || "Failed to send. Please try again later.");
     }
   };
 
   const resetForm = () => {
-    setForm({ name: "", email: "", message: "" });
+    setForm({ name: "", email: "", phone: "", message: "" });
     setErrors({});
     setSubmitted(false);
+    setSending(false);
+    setSubmitError("");
     onClose();
   };
 
@@ -72,6 +88,7 @@ export default function QuotationModal({ isOpen, onClose }) {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <input type="checkbox" name="botcheck" className="hidden" tabIndex={-1} autoComplete="off" />
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Name</label>
                 <input
@@ -97,6 +114,18 @@ export default function QuotationModal({ isOpen, onClose }) {
               </div>
 
               <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => { setForm({ ...form, phone: e.target.value }); if (errors.phone) setErrors({ ...errors, phone: "" }); }}
+                  className={`w-full px-4 py-2.5 rounded-xl border outline-none transition-all ${errors.phone ? "border-red-400 focus:ring-2 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue focus:ring-2 focus:ring-blue-100"}`}
+                  placeholder="+91 9XXXXXXXXX"
+                />
+                {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+              </div>
+
+              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Message</label>
                 <textarea
                   rows={4}
@@ -108,11 +137,18 @@ export default function QuotationModal({ isOpen, onClose }) {
                 {errors.message && <p className="text-red-500 text-xs mt-1">{errors.message}</p>}
               </div>
 
+              {submitError && (
+                <p className="bg-red-50 border border-red-200 text-red-600 text-sm font-medium rounded-xl px-4 py-2.5">
+                  {submitError}
+                </p>
+              )}
+
               <button
                 type="submit"
-                className="w-full bg-brand-blue text-white font-bold py-3 rounded-xl hover:bg-brand-blue-light transition-all duration-200 shadow-md"
+                disabled={sending}
+                className="w-full bg-brand-blue text-white font-bold py-3 rounded-xl hover:bg-brand-blue-light transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Send Quotation Request
+                {sending ? "Sending..." : "Send Quotation Request"}
               </button>
             </form>
           </>
